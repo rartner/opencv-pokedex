@@ -11,6 +11,7 @@ SIFT = cv2.xfeatures2d.SIFT_create()
 
 
 def main():
+    """Execute."""
     parser = argparse.ArgumentParser('pokedex using sift descriptor')
     parser.add_argument('-f', help='path to pokemon image', required=True)
     args = parser.parse_args()
@@ -20,6 +21,7 @@ def main():
 
 
 def find(pokemon):
+    """Find pokemon in the dataset."""
     matches = []
     for i in range(1, N_POKEMONS + 1):
         for v in range(0, 3):
@@ -31,6 +33,7 @@ def find(pokemon):
 
 
 def match(pokemon, test):
+    """Match input image with test images."""
     img_keypoints, img_descriptor = SIFT.detectAndCompute(pokemon, None)
     tst_keypoints, tst_descriptor = SIFT.detectAndCompute(test, None)
     bf = cv2.BFMatcher()
@@ -39,6 +42,7 @@ def match(pokemon, test):
 
 
 def filter_keypoints(matches):
+    """Filter keypoints to avoid false positives."""
     keypoints_filtered = []
     for m, n in matches:
         if m.distance < 0.7*n.distance:
@@ -47,6 +51,7 @@ def filter_keypoints(matches):
 
 
 def read_csv(match):
+    """Read pokemon data in the dataset csv."""
     with open(DATASET_PATH, mode='r') as dataset:
         reader = csv.reader(dataset)
         for row in reader:
