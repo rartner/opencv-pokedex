@@ -2,9 +2,11 @@
 import argparse
 import csv
 import cv2
+import os
+import pickle
 
 
-IMAGE_PATH = 'dataset/{index}/{index}-{version}.png'
+IMAGE_PATH_OS = 'dataset/{index}/{img}'
 DATASET_PATH = 'dataset/pokemon.csv'
 N_POKEMONS = 151
 SIFT = cv2.xfeatures2d.SIFT_create()
@@ -14,30 +16,54 @@ def main():
     """Execute."""
     parser = argparse.ArgumentParser('pokedex using sift descriptor')
     parser.add_argument('-f', help='path to pokemon image', required=True)
+    parser.add_argument('-n',
+                        help='reload dataset from images',
+                        action='store_true')
     args = parser.parse_args()
+    test_images = []
+    if os.path.exists('dataset.bin') and not args.n:
+        keypoints_bin = open('dataset.bin', mode='rb')
+        test_images = pickle.load(keypoints_bin)
+    else:
+        test_images = get_keypoints()
     pokemon = cv2.imread(args.f)
-    match = find(pokemon)
+    match = find(pokemon, test_images)
     print (read_csv(match))
 
 
-def find(pokemon):
+def find(pokemon, test_images):
     """Find pokemon in the dataset."""
     matches = []
-    for i in range(1, N_POKEMONS + 1):
-        for v in range(0, 3):
-            test_image = cv2.imread(IMAGE_PATH.format(index=i, version=v))
-            keypoints = match(pokemon, test_image)
-            if (len(keypoints) > 0):
-                matches.append((i, len(keypoints)))
+    img_keypoints, img_descriptor = SIFT.detectAndCompute(pokemon, None)
+    for test_image in test_images:
+        keypoints = match(img_descriptor, test_image['descriptor'])
+        if (len(keypoints) > 0):
+            matches.append((test_image['pokemon'], len(keypoints)))
     return sorted(matches, key=lambda x: x[1], reverse=True)[0]
+
+
+def get_keypoints():
+    """Get descriptors directly from images."""
+    keypoints_list = []
+    for i in range(1, N_POKEMONS + 1):
+        for filename in os.listdir('dataset/{i}/'.format(i=i)):
+            image_path = IMAGE_PATH_OS.format(index=i, img=filename)
+            test_image = cv2.imread(image_path)
+            keypoints, descriptor = SIFT.detectAndCompute(test_image, None)
+            img_descriptor = {
+                'path': image_path,
+                'descriptor': descriptor,
+                'pokemon': i
+            }
+            keypoints_list.append(img_descriptor)
+    pickle.dump(keypoints_list, open('dataset.bin', 'wb'))
+    return keypoints_list
 
 
 def match(pokemon, test):
     """Match input image with test images."""
-    img_keypoints, img_descriptor = SIFT.detectAndCompute(pokemon, None)
-    tst_keypoints, tst_descriptor = SIFT.detectAndCompute(test, None)
     bf = cv2.BFMatcher()
-    matches = bf.knnMatch(img_descriptor, tst_descriptor, k=2)
+    matches = bf.knnMatch(pokemon, test, k=2)
     return filter_keypoints(matches)
 
 
@@ -45,7 +71,7 @@ def filter_keypoints(matches):
     """Filter keypoints to avoid false positives."""
     keypoints_filtered = []
     for m, n in matches:
-        if m.distance < 0.7*n.distance:
+        if m.distance < 0.3*n.distance:
             keypoints_filtered.append([m])
     return keypoints_filtered
 
